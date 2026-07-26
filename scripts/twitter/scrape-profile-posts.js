@@ -53,11 +53,11 @@ var CONFIG = {
   
   // Number of tweets to scrape (max)
   // 💡 Set to a higher number for more tweets, but it takes longer
-  targetCount: 300,
+  targetCount: 500,
   
   // Maximum scroll attempts before giving up
   // 💡 Increase if the profile has lots of media (slower loading)
-  maxScrollAttempts: 300,
+  maxScrollAttempts: 500,
   
   // Delay between scrolls (milliseconds)
   // 💡 Increase to 3000-30000 if tweets aren't loading properly
@@ -166,7 +166,7 @@ var CONFIG = {
     
     // Show top performing tweets (sorted by engagement)
     // 💡 Set to 0 to disable, or 5-10 to show top posts
-    showTopPosts: 5,
+    showTopPosts: 10,
     
     // Show extracted hashtags from all tweets
     // 💡 Useful to see trending topics for this profile
@@ -178,7 +178,7 @@ var CONFIG = {
     
     // Show all URLs/links shared
     // 💡 Useful to see what resources they share
-    showLinks: false,
+    showLinks: true,
     
     // Pretty print tweets in console (formatted text view)
     // 💡 Makes it easy to read tweets directly in console
