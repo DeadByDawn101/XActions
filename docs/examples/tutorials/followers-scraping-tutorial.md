@@ -399,7 +399,7 @@ npx xactions scrape followers rival_app \
 ### ✅ CLI Output Preview
 
 ```
-⚡ XActions v2.4.0
+⚡ XActions v3.4.4
 
 👥 FOLLOWERS SCRAPER
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

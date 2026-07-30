@@ -650,7 +650,7 @@ xactions info
 ```bash
 $ xactions info
 
-⚡ XActions v3.0.0
+⚡ XActions v3.4.4
 
 The Complete X/Twitter Automation Toolkit
 

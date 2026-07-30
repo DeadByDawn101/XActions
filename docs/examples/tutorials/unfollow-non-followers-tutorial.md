@@ -458,7 +458,7 @@ npx xactions unfollow --non-followers \
 ### ✅ CLI Output Preview
 
 ```
-⚡ XActions v2.4.0
+⚡ XActions v3.4.4
 
 🔍 UNFOLLOW NON-FOLLOWERS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
