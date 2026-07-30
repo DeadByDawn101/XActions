@@ -408,6 +408,18 @@
     "minutes": 2
   },
   {
+    "slug": "examples",
+    "title": "Examples",
+    "description": "Copy-paste snippets for the four ways to use XActions. For complete programs you can run and edit, see examples/ — eight of them, each verified against the live API.",
+    "section": "Guides & Reference",
+    "icon": "📖",
+    "urlPath": "/docs/guides/examples",
+    "outSubdir": "guides",
+    "priority": 0.8,
+    "sourcePath": "docs/examples.md",
+    "minutes": 1
+  },
+  {
     "slug": "extension-api",
     "title": "XActions Extension — Internal API Reference",
     "description": "Technical documentation of the extension's message protocol, storage schema, service worker API, and event lifecycle.",
