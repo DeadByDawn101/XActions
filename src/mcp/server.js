@@ -3908,7 +3908,7 @@ function printBanner(pluginCount, pluginToolCount) {
   const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 
   console.error('');
-  console.error('⚡ XActions MCP Server v3.1.0 — 140+ tools');
+  console.error(`⚡ XActions MCP Server v${VERSION} — ${TOOLS.length + pluginToolCount} tools`);
   console.error('   The free, open-source Twitter/X MCP server');
   console.error('   https://github.com/nirholas/XActions');
   console.error('');

@@ -54,6 +54,66 @@ function formatNumber(num) {
 }
 
 /**
+ * Build an HTTP-only Scraper, authenticated if a session cookie is saved.
+ *
+ * Read commands prefer this over Puppeteer. X no longer serves profile or
+ * timeline content to a logged-out browser, so the DOM scrape came back empty
+ * and the CLI cheerfully printed `Followers: 0` and exited 0 — the first
+ * command in the README looked broken to every new user. The internal GraphQL
+ * API still answers guest-token requests for public reads, is an order of
+ * magnitude faster, and needs no Chromium download.
+ *
+ * @returns {Promise<import('../client/index.js').Scraper>}
+ */
+async function createHttpScraper() {
+  const { Scraper } = await import('../client/index.js');
+  const scraper = new Scraper();
+
+  // Prefer a full cookie jar exported from the browser — it carries ct0, which
+  // X requires as a CSRF header before it will treat a session as logged in.
+  try {
+    await scraper.loadCookies(path.join(CONFIG_DIR, 'cookies.json'));
+    return scraper;
+  } catch {
+    // No cookie jar saved; fall through to the values `xactions login` stores.
+  }
+
+  const config = await loadConfig();
+  if (config.authToken) {
+    const parts = [`auth_token=${config.authToken}`];
+    if (config.csrfToken) parts.push(`ct0=${config.csrfToken}`);
+    await scraper.setCookies(parts.join('; '));
+  }
+
+  return scraper;
+}
+
+/**
+ * Fail loudly when a scrape came back empty.
+ *
+ * Silently reporting "0 results" as success is the single most confusing thing
+ * a scraper can do: it is indistinguishable from an account that genuinely has
+ * nothing, so nobody files a bug and everybody assumes the tool is broken.
+ *
+ * @param {unknown[]} results
+ * @param {string} what - Noun for the message, e.g. "tweets"
+ * @param {string} hint - What the user should try next
+ * @throws {Error} When results is empty
+ */
+function assertNotEmpty(results, what, hint) {
+  if (results && results.length > 0) return;
+  throw new Error(
+    `No ${what} returned. This usually means X served an empty page rather than ` +
+      `that none exist.\n  ${hint}`,
+  );
+}
+
+/** Suggested next step when an unauthenticated read comes back empty. */
+const AUTH_HINT =
+  'Run `xactions login` with your auth_token cookie (DevTools > Application > Cookies > x.com), ' +
+  'or retry in a minute if you are being rate limited.';
+
+/**
  * Smart output handler — routes data to the right exporter based on file extension.
  * Supports: .json, .csv, .xlsx, plus --google-sheets flag.
  *
@@ -130,25 +190,47 @@ program
   .description('Set up authentication with session cookie')
   .action(async () => {
     console.log(chalk.cyan('\n⚡ XActions Login Setup\n'));
-    console.log(chalk.gray('To get your auth_token cookie:'));
+    console.log(chalk.gray('To get your session cookies:'));
     console.log(chalk.gray('1. Go to x.com and log in'));
-    console.log(chalk.gray('2. Open DevTools (F12) → Application → Cookies'));
-    console.log(chalk.gray('3. Find "auth_token" and copy its value\n'));
+    console.log(chalk.gray('2. Open DevTools (F12) → Application → Cookies → https://x.com'));
+    console.log(chalk.gray('3. Copy the values of "auth_token" and "ct0"\n'));
+    console.log(
+      chalk.gray('   ct0 is the CSRF token. Without it X treats the session as logged out,')
+    );
+    console.log(chalk.gray('   so search, bookmarks, and DMs stay unavailable.\n'));
 
-    const { cookie } = await inquirer.prompt([
+    const { cookie, csrf } = await inquirer.prompt([
       {
         type: 'password',
         name: 'cookie',
         message: 'Enter your auth_token cookie:',
         mask: '*',
       },
+      {
+        type: 'password',
+        name: 'csrf',
+        message: 'Enter your ct0 cookie (optional, press Enter to skip):',
+        mask: '*',
+      },
     ]);
 
     const config = await loadConfig();
     config.authToken = cookie;
+    if (csrf) {
+      config.csrfToken = csrf;
+    } else {
+      delete config.csrfToken;
+    }
     await saveConfig(config);
 
-    console.log(chalk.green('\n✓ Authentication saved!\n'));
+    console.log(chalk.green('\n✓ Authentication saved!'));
+    if (!csrf) {
+      console.log(
+        chalk.yellow('  No ct0 saved — login-only endpoints (search, DMs) will still be blocked.\n')
+      );
+    } else {
+      console.log('');
+    }
   });
 
 program
@@ -173,16 +255,14 @@ program
     const spinner = ora(`Fetching profile for @${username}`).start();
 
     try {
-      const browser = await scrapers.createBrowser();
-      const page = await scrapers.createPage(browser);
+      const scraper = await createHttpScraper();
+      const profile = await scraper.getProfile(username);
 
-      const config = await loadConfig();
-      if (config.authToken) {
-        await scrapers.loginWithCookie(page, config.authToken);
+      if (!profile || !profile.id) {
+        throw new Error(
+          `X returned no profile data for @${username}. Check the handle, or ${AUTH_HINT}`,
+        );
       }
-
-      const profile = await scrapers.scrapeProfile(page, username);
-      await browser.close();
 
       spinner.stop();
 
@@ -194,16 +274,23 @@ program
         console.log(`  ${chalk.cyan('Bio:')}       ${profile.bio || 'N/A'}`);
         console.log(`  ${chalk.cyan('Location:')}  ${profile.location || 'N/A'}`);
         console.log(`  ${chalk.cyan('Website:')}   ${profile.website || 'N/A'}`);
-        console.log(`  ${chalk.cyan('Joined:')}    ${profile.joined || 'N/A'}`);
+        const joined = profile.joined ? new Date(profile.joined) : null;
         console.log(
-          `  ${chalk.cyan('Following:')} ${formatNumber(profile.following || 0)}  ${chalk.cyan('Followers:')} ${formatNumber(profile.followers || 0)}`
+          `  ${chalk.cyan('Joined:')}    ${joined && !Number.isNaN(joined.valueOf()) ? joined.toISOString().slice(0, 10) : 'N/A'}`
         );
-        if (profile.verified) console.log(`  ${chalk.blue('✓ Verified')}`);
+        console.log(
+          `  ${chalk.cyan('Following:')} ${formatNumber(profile.followingCount || 0)}  ${chalk.cyan('Followers:')} ${formatNumber(profile.followersCount || 0)}`
+        );
+        console.log(
+          `  ${chalk.cyan('Tweets:')}    ${formatNumber(profile.tweetCount || 0)}  ${chalk.cyan('Listed:')}    ${formatNumber(profile.listedCount || 0)}`
+        );
+        if (profile.verified || profile.isBlueVerified) console.log(`  ${chalk.blue('✓ Verified')}`);
         console.log();
       }
     } catch (error) {
       spinner.fail('Failed to fetch profile');
       console.error(chalk.red(error.message));
+      process.exitCode = 1;
     }
   });
 
@@ -224,28 +311,22 @@ program
     const spinner = ora(`Scraping followers for @${username}`).start();
 
     try {
-      const browser = await scrapers.createBrowser();
-      const page = await scrapers.createPage(browser);
+      const scraper = await createHttpScraper();
 
-      const config = await loadConfig();
-      if (config.authToken) {
-        await scrapers.loginWithCookie(page, config.authToken);
+      const followers = [];
+      for await (const follower of scraper.getFollowers(username, limit)) {
+        followers.push(follower);
+        spinner.text = `Scraping followers for @${username} (${followers.length}/${limit})`;
       }
 
-      const followers = await scrapers.scrapeFollowers(page, username, {
-        limit,
-        onProgress: ({ scraped }) => {
-          spinner.text = `Scraping followers for @${username} (${scraped}/${limit})`;
-        },
-      });
-      await browser.close();
-
+      assertNotEmpty(followers, `followers for @${username}`, AUTH_HINT);
       spinner.succeed(`Scraped ${followers.length} followers`);
 
       await smartOutput(followers, options, 'followers');
     } catch (error) {
       spinner.fail('Failed to scrape followers');
       console.error(chalk.red(error.message));
+      process.exitCode = 1;
     }
   });
 
@@ -262,28 +343,22 @@ program
     const spinner = ora(`Scraping following for @${username}`).start();
 
     try {
-      const browser = await scrapers.createBrowser();
-      const page = await scrapers.createPage(browser);
+      const scraper = await createHttpScraper();
 
-      const config = await loadConfig();
-      if (config.authToken) {
-        await scrapers.loginWithCookie(page, config.authToken);
+      const following = [];
+      for await (const account of scraper.getFollowing(username, limit)) {
+        following.push(account);
+        spinner.text = `Scraping following for @${username} (${following.length}/${limit})`;
       }
 
-      const following = await scrapers.scrapeFollowing(page, username, {
-        limit,
-        onProgress: ({ scraped }) => {
-          spinner.text = `Scraping following for @${username} (${scraped}/${limit})`;
-        },
-      });
-      await browser.close();
-
+      assertNotEmpty(following, `accounts followed by @${username}`, AUTH_HINT);
       spinner.succeed(`Scraped ${following.length} following`);
 
       await smartOutput(following, options, 'following');
     } catch (error) {
       spinner.fail('Failed to scrape following');
       console.error(chalk.red(error.message));
+      process.exitCode = 1;
     }
   });
 
@@ -297,21 +372,31 @@ program
     const spinner = ora('Analyzing follow relationships...').start();
 
     try {
-      const browser = await scrapers.createBrowser();
-      const page = await scrapers.createPage(browser);
+      const scraper = await createHttpScraper();
 
-      const config = await loadConfig();
-      if (config.authToken) {
-        await scrapers.loginWithCookie(page, config.authToken);
+      spinner.text = 'Reading following list...';
+      const following = [];
+      for await (const account of scraper.getFollowing(username, limit)) {
+        following.push(account);
+        spinner.text = `Reading following list (${following.length})`;
       }
+      assertNotEmpty(following, `accounts followed by @${username}`, AUTH_HINT);
 
-      spinner.text = 'Scraping following list...';
-      const following = await scrapers.scrapeFollowing(page, username, { limit });
+      spinner.text = 'Reading follower list...';
+      const followerHandles = new Set();
+      for await (const follower of scraper.getFollowers(username, limit)) {
+        followerHandles.add(follower.username.toLowerCase());
+        spinner.text = `Reading follower list (${followerHandles.size})`;
+      }
+      assertNotEmpty([...followerHandles], `followers of @${username}`, AUTH_HINT);
 
-      await browser.close();
-
-      const nonFollowers = following.filter((u) => !u.followsBack);
-      const mutuals = following.filter((u) => u.followsBack);
+      // The GraphQL follow lists carry no `followsBack` flag, so the previous
+      // filter on it matched every single account and reported the entire
+      // following list as non-followers. Diff the two lists instead.
+      const nonFollowers = following.filter(
+        (u) => !followerHandles.has(u.username.toLowerCase()),
+      );
+      const mutuals = following.filter((u) => followerHandles.has(u.username.toLowerCase()));
 
       spinner.succeed('Analysis complete!');
 
@@ -338,6 +423,7 @@ program
     } catch (error) {
       spinner.fail('Failed to analyze');
       console.error(chalk.red(error.message));
+      process.exitCode = 1;
     }
   });
 
@@ -355,26 +441,25 @@ program
     const spinner = ora(`Scraping tweets from @${username}`).start();
 
     try {
-      const browser = await scrapers.createBrowser();
-      const page = await scrapers.createPage(browser);
+      const scraper = await createHttpScraper();
+      const stream = options.replies
+        ? scraper.getTweetsAndReplies(username, limit)
+        : scraper.getTweets(username, limit);
 
-      const config = await loadConfig();
-      if (config.authToken) {
-        await scrapers.loginWithCookie(page, config.authToken);
+      const tweets = [];
+      for await (const tweet of stream) {
+        tweets.push(tweet);
+        spinner.text = `Scraping tweets from @${username} (${tweets.length}/${limit})`;
       }
 
-      const tweets = await scrapers.scrapeTweets(page, username, {
-        limit,
-        includeReplies: options.replies,
-      });
-      await browser.close();
-
+      assertNotEmpty(tweets, `tweets for @${username}`, AUTH_HINT);
       spinner.succeed(`Scraped ${tweets.length} tweets`);
 
       await smartOutput(tweets, options, 'tweets');
     } catch (error) {
       spinner.fail('Failed to scrape tweets');
       console.error(chalk.red(error.message));
+      process.exitCode = 1;
     }
   });
 
@@ -389,20 +474,24 @@ program
     const spinner = ora(`Searching for "${query}"`).start();
 
     try {
-      const browser = await scrapers.createBrowser();
-      const page = await scrapers.createPage(browser);
+      const scraper = await createHttpScraper();
+      const { SearchMode } = await import('../client/index.js');
 
-      const config = await loadConfig();
-      if (config.authToken) {
-        await scrapers.loginWithCookie(page, config.authToken);
+      const mode =
+        {
+          latest: SearchMode.Latest,
+          top: SearchMode.Top,
+          photos: SearchMode.Photos,
+          videos: SearchMode.Videos,
+        }[String(options.filter).toLowerCase()] || SearchMode.Latest;
+
+      const tweets = [];
+      for await (const tweet of scraper.searchTweets(query, limit, mode)) {
+        tweets.push(tweet);
+        spinner.text = `Searching for "${query}" (${tweets.length}/${limit})`;
       }
 
-      const tweets = await scrapers.searchTweets(page, query, {
-        limit,
-        filter: options.filter,
-      });
-      await browser.close();
-
+      assertNotEmpty(tweets, `results for "${query}"`, AUTH_HINT);
       spinner.succeed(`Found ${tweets.length} tweets`);
 
       if (options.output) {
@@ -414,6 +503,7 @@ program
     } catch (error) {
       spinner.fail('Search failed');
       console.error(chalk.red(error.message));
+      process.exitCode = 1;
     }
   });
 

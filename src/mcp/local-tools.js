@@ -61,6 +61,68 @@ async function ensureBrowser() {
   return { browser, page };
 }
 
+// ============================================================================
+// HTTP client (no browser) — preferred for public reads
+// ============================================================================
+
+let httpScraper = null;
+
+/**
+ * Lazily build the HTTP-only Scraper, authenticated when a session cookie is
+ * configured.
+ *
+ * X stopped serving profile and timeline content to logged-out browsers, so
+ * the Puppeteer path returned a page with nothing on it and these tools
+ * answered agents with every field set to null — indistinguishable from an
+ * empty account, so agents reported confidently wrong answers instead of
+ * failing. The internal GraphQL API still serves public reads to guest tokens,
+ * needs no Chromium, and returns in milliseconds.
+ *
+ * @returns {Promise<import('../client/index.js').Scraper>}
+ */
+async function ensureHttpScraper() {
+  if (httpScraper) return httpScraper;
+
+  const { Scraper } = await import('../client/index.js');
+  httpScraper = new Scraper();
+
+  const authToken = process.env.XACTIONS_SESSION_COOKIE;
+  const csrfToken = process.env.XACTIONS_CSRF_TOKEN;
+  if (authToken) {
+    const parts = [`auth_token=${authToken}`];
+    if (csrfToken) parts.push(`ct0=${csrfToken}`);
+    await httpScraper.setCookies(parts.join('; '));
+  }
+
+  return httpScraper;
+}
+
+/**
+ * Try the HTTP client first and fall back to the browser.
+ *
+ * The browser path still wins for anything that needs a rendered page or a
+ * logged-in UI action, so it stays as the fallback rather than being removed.
+ *
+ * @template T
+ * @param {() => Promise<T>} viaHttp
+ * @param {() => Promise<T>} viaBrowser
+ * @returns {Promise<T>}
+ */
+async function preferHttp(viaHttp, viaBrowser) {
+  try {
+    return await viaHttp();
+  } catch (httpError) {
+    try {
+      return await viaBrowser();
+    } catch {
+      // Report the HTTP failure: it carries the actionable message
+      // ("authenticate first"), while the browser failure is usually a
+      // downstream symptom of the same missing session.
+      throw httpError;
+    }
+  }
+}
+
 /**
  * Close browser (called by server.js on SIGINT/SIGTERM)
  */
@@ -153,8 +215,42 @@ export async function x_login({ cookie }) {
 // ============================================================================
 
 export async function x_get_profile({ username }) {
-  const { page: pg } = await ensureBrowser();
-  return scrapeProfile(pg, username);
+  return preferHttp(
+    async () => {
+      const scraper = await ensureHttpScraper();
+      const profile = await scraper.getProfile(username);
+
+      // A profile object with no id is X saying "nothing here" in a shape that
+      // looks like success. Treat it as the failure it is so the browser
+      // fallback gets a turn instead of the agent getting nulls.
+      if (!profile?.id) throw new Error(`No profile data returned for @${username}`);
+
+      return {
+        name: profile.name,
+        username: profile.username,
+        bio: profile.bio,
+        location: profile.location,
+        website: profile.website,
+        joined: profile.joined,
+        following: profile.followingCount,
+        followers: profile.followersCount,
+        tweets: profile.tweetCount,
+        likes: profile.likesCount,
+        listed: profile.listedCount,
+        media: profile.mediaCount,
+        avatar: profile.avatar,
+        header: profile.banner,
+        verified: profile.verified || profile.isBlueVerified,
+        protected: profile.protected,
+        pinnedTweetIds: profile.pinnedTweetIds,
+        platform: 'twitter',
+      };
+    },
+    async () => {
+      const { page: pg } = await ensureBrowser();
+      return scrapeProfile(pg, username);
+    },
+  );
 }
 
 export async function x_get_followers({ username, limit = 100 }) {
@@ -184,8 +280,21 @@ export async function x_get_non_followers({ username }) {
 }
 
 export async function x_get_tweets({ username, limit = 50 }) {
-  const { page: pg } = await ensureBrowser();
-  return scrapeTweets(pg, username, { limit });
+  return preferHttp(
+    async () => {
+      const scraper = await ensureHttpScraper();
+      const tweets = [];
+      for await (const tweet of scraper.getTweets(username, limit)) {
+        tweets.push(tweet);
+      }
+      if (tweets.length === 0) throw new Error(`No tweets returned for @${username}`);
+      return tweets;
+    },
+    async () => {
+      const { page: pg } = await ensureBrowser();
+      return scrapeTweets(pg, username, { limit });
+    },
+  );
 }
 
 export async function x_search_tweets({ query, limit = 50 }) {
