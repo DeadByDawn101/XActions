@@ -154,7 +154,7 @@ window.XActions.status()  — Show progress</code></pre>
           <tbody>
             <tr><td><code>maxUnfollows</code></td><td><code>Infinity</code></td><td>Cap total unfollows</td></tr>
 <tr><td><code>whitelist</code></td><td><code>[]</code></td><td>Usernames to never unfollow (without @)</td></tr>
-<tr><td><code>dryRun</code></td><td><code>true</code></td><td>Preview without unfollowing — SET FALSE TO RUN</td></tr>
+<tr><td><code>dryRun</code></td><td><code>false</code></td><td>Preview without unfollowing — SET FALSE TO RUN</td></tr>
 <tr><td><code>minDelay</code></td><td><code>1500</code></td><td>Minimum ms between actions</td></tr>
 <tr><td><code>maxDelay</code></td><td><code>3500</code></td><td>Maximum ms between actions</td></tr>
 <tr><td><code>scrollDelay</code></td><td><code>2000</code></td><td>Wait after scroll for DOM to load</td></tr>
@@ -172,7 +172,7 @@ window.XActions.status()  — Show progress</code></pre>
           <pre><code>const CONFIG = {
     maxUnfollows: Infinity,           // Cap total unfollows
     whitelist: [],                    // Usernames to never unfollow (without @)
-    dryRun: true,                     // Preview without unfollowing — SET FALSE TO RUN
+    dryRun: false,                     // Preview without unfollowing — SET FALSE TO RUN
     minDelay: 1500,                   // Minimum ms between actions
     maxDelay: 3500,                   // Maximum ms between actions
     scrollDelay: 2000,                // Wait after scroll for DOM to load
@@ -228,7 +228,7 @@ window.XActions.status()  — Show progress</code></pre>
   const CONFIG = {
     maxUnfollows: Infinity,           // Cap total unfollows
     whitelist: [],                    // Usernames to never unfollow (without @)
-    dryRun: true,                     // Preview without unfollowing — SET FALSE TO RUN
+    dryRun: false,                     // Preview without unfollowing — SET FALSE TO RUN
     minDelay: 1500,                   // Minimum ms between actions
     maxDelay: 3500,                   // Maximum ms between actions
     scrollDelay: 2000,                // Wait after scroll for DOM to load
