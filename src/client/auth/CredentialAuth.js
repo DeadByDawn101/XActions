@@ -15,6 +15,7 @@
 import { BEARER_TOKEN } from '../api/graphqlQueries.js';
 import { AuthenticationError } from '../errors.js';
 import { updateJarFromResponse, extractCsrfToken } from './CookieParser.js';
+import { randomUserAgent } from './userAgent.js';
 
 const LOGIN_URL = 'https://api.x.com/1.1/onboarding/task.json';
 
@@ -201,6 +202,8 @@ export class CredentialAuth {
     const headers = {
       Authorization: `Bearer ${BEARER_TOKEN}`,
       'Content-Type': 'application/json',
+      // X rejects UA-less requests to its internal API with a misleading 404.
+      'User-Agent': randomUserAgent(),
       'x-guest-token': guestToken,
       'x-twitter-active-user': 'yes',
       'x-twitter-client-language': 'en',
