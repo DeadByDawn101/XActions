@@ -10,6 +10,7 @@ import {
   diffCards,
   clearCardCache,
 } from '../../src/a2a/agentCard.js';
+import { VERSION } from '../../src/version.js';
 
 afterEach(() => {
   clearCardCache();
@@ -20,7 +21,7 @@ describe('generateAgentCard', () => {
     const card = generateAgentCard({ baseUrl: 'http://localhost:3100' });
     expect(card.name).toBe('XActions Agent');
     expect(card.url).toBe('http://localhost:3100');
-    expect(card.version).toBe('3.1.0');
+    expect(card.version).toBe(VERSION);
     expect(card.provider).toBeDefined();
     expect(card.provider.organization).toContain('XActions');
     expect(Array.isArray(card.skills)).toBe(true);

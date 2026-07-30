@@ -42,6 +42,38 @@ let _initPromise = null;
 let _initFailed = false;
 
 /**
+ * Build a single route entry in the shape @x402/core v2 expects.
+ *
+ * v2 moved the payment terms behind an `accepts` key. The flat
+ * `{ price, network, payTo }` shape from v1 makes the SDK's
+ * `normalizePaymentOptions()` return `[undefined]`, and
+ * `validateRouteConfiguration()` then throws while reading
+ * `option.network` — which surfaced as a 500 on every single
+ * /api/ai/* request instead of the intended 402.
+ *
+ * Only the configured NETWORK is listed. `initialize()` throws a
+ * RouteConfigurationError if any advertised network lacks a registered
+ * scheme or facilitator support, so advertising the full
+ * getAcceptedNetworks() list here would take the whole API down the
+ * moment one facilitator dropped a chain.
+ *
+ * @param {string} price - Human price string, e.g. "$0.01"
+ * @param {string} description - Shown in the 402 payment requirements
+ * @returns {object} Route config for paymentMiddleware()
+ */
+function paidRoute(price, description) {
+  return {
+    accepts: {
+      scheme: 'exact',
+      price,
+      network: NETWORK,
+      payTo: PAY_TO_ADDRESS,
+    },
+    description,
+  };
+}
+
+/**
  * Build route configuration for the official x402 middleware.
  * Maps each AI operation to its price, network, and payTo address.
  */
@@ -52,28 +84,22 @@ function buildRouteConfig() {
     const [category, action] = operation.split(':');
     const routePath = `POST /api/ai/${category}/${action}`;
 
-    routes[routePath] = {
-      price,
-      network: NETWORK,
-      payTo: PAY_TO_ADDRESS,
-    };
+    routes[routePath] = paidRoute(price, `XActions ${category}: ${action}`);
   }
 
   // Script download routes
   for (const [scriptPath, price] of Object.entries(SCRIPT_PRICES)) {
-    routes[`GET /api/scripts/${scriptPath}`] = {
+    routes[`GET /api/scripts/${scriptPath}`] = paidRoute(
       price,
-      network: NETWORK,
-      payTo: PAY_TO_ADDRESS,
-    };
+      `Download the ${scriptPath} browser script`,
+    );
   }
 
   // Script run route — single endpoint, priced higher than download
-  routes['POST /api/scripts/run'] = {
-    price: SCRIPT_RUN_PRICE,
-    network: NETWORK,
-    payTo: PAY_TO_ADDRESS,
-  };
+  routes['POST /api/scripts/run'] = paidRoute(
+    SCRIPT_RUN_PRICE,
+    'Run a browser script server-side and return its result',
+  );
 
   return routes;
 }
