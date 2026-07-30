@@ -78,9 +78,10 @@
     "video:render:analytics": "node site/video/render.mjs AnalyticsDashboard",
     "video:render:promo": "node site/video/render.mjs PromoVideo",
     "site:docs": "node scripts/build-all-docs.js && node scripts/fix-doc-links.js",
+    "site:index": "node scripts/build-index-pages.mjs",
     "site:scripts": "node scripts/build-script-pages.js",
     "site:sitemap": "node scripts/build-sitemap.js",
-    "site:build": "npm run site:docs && npm run site:scripts && npm run site:sitemap && bash deploy/cloudflare/build.sh",
+    "site:build": "npm run site:docs && npm run site:index && npm run site:scripts && npm run site:sitemap && bash deploy/cloudflare/build.sh",
     "site:deploy": "npm run site:build && npx wrangler pages deploy pages-out --project-name xactions"
   },
   "dependencies": {

@@ -534,7 +534,10 @@ const TUTORIAL_CATEGORIES = {
 };
 
 function stripFrontmatter(markdown) {
-  return markdown.replace(/^---[\s\S]*?---\n*/m, '');
+  // Anchored, no `m` flag: with it, `^---` matched horizontal rules mid-file
+  // and deleted every line between two of them.
+  if (!markdown.startsWith('---')) return markdown;
+  return markdown.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n*/, '');
 }
 
 function extractFrontmatterField(markdown, field) {
