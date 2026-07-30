@@ -1366,3 +1366,10 @@ curl -X POST https://modelcontextprotocol.name/mcp/xactions \
 | **Claude Tutorials** | ✅ 22 prompts | ❌ | ❌ | ❌ | ❌ | ❌ |
 | **Language** | JavaScript | Python | TypeScript | TypeScript | JavaScript | Python |
 | **Cost** | **Free** | Free | Free + API keys | Free | Free + API keys | Free |
+
+## Documentation
+
+Full documentation site: **https://nirholas.github.io/XActions/**
+
+- [Getting started](docs/getting-started.md) covers install and first run.
+- [Examples](docs/examples.md) has copy-paste snippets.
