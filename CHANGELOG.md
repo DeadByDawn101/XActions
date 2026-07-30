@@ -6,7 +6,40 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+#### Public reads work again, without a browser
+- **`Scraper.getProfile()` returned `HTTP 404 {"message":"Query not found"}` for every call.** The repo carried two independent tables of X GraphQL query IDs, and 11 of the client's had gone stale while the shared map stayed current. Query IDs now have exactly one home (`src/scrapers/twitter/http/endpoints.js`), and a test fails if a second copy reappears.
+- **The HTTP client could not obtain a guest token at all.** X answers a request with no browser `User-Agent` with a misleading `HTTP 404 "Sorry, that page does not exist"`, which reads like a removed endpoint rather than a rejected client. Every request the client makes now carries one.
+- **`xactions profile` printed `Followers: 0` and exited 0.** X stopped serving profile and timeline content to logged-out browsers, so the Puppeteer scrape found an empty page and the CLI reported the nothing it found as success. `profile`, `tweets`, `followers`, `following`, `search`, and `non-followers` now use the HTTP client, which is roughly an order of magnitude faster and needs no Chromium download.
+- **`xactions non-followers` reported your entire following list as non-followers.** It filtered on a `followsBack` flag the GraphQL follow lists do not carry, so the predicate matched everything. It now diffs the follower and following lists.
+- **The MCP server answered AI agents with every field set to `null`** (issue #27). `x_get_profile` and `x_get_tweets` had the same browser-path problem, which is worse in an agent context: an assistant cannot tell an empty result from a missing one, so it reports confidently wrong answers. Both now prefer the HTTP client and fall back to the browser.
+- **Unauthenticated failures now say what to do.** X restricts search, followers, likes, bookmarks, and DMs to logged-in sessions and answers a guest request with a bare `404`. That surfaced as `HTTP 404: Not Found`, which sent people looking for a bug in XActions. It now raises `AUTH_REQUIRED` naming the endpoint and the fix. Errors also carry `endpoint`, `httpStatus`, and `rateLimitReset`, which positional constructor calls had been silently dropping.
+- **`xactions login` now captures `ct0` as well as `auth_token`.** Without the CSRF token X treats the session as logged out, so session-tier endpoints kept failing after an apparently successful login.
+
+#### Paid API
+- **Every `/api/ai/*` endpoint returned `500` instead of `402`.** `@x402/core` v2 moved payment terms behind an `accepts` key; the flat v1 route shape made the SDK throw during route validation on every request. All 95 payment tests now pass against a live server.
+
+#### Cross-platform
+- **Every Bluesky scrape threw `Cannot read properties of undefined (reading '_client')`.** The XRPC helper detached the SDK method from its namespace before calling it. Profiles, posts, and follower lists all work again.
+- **Mastodon bios and posts contained raw HTML entities** (`&amp;`, `&#39;`) after tag stripping.
+
+#### Tests
+- **`tests/mcp/server.test.js` never ran.** It imported `describe`/`it` from `node:test`, which registers with Node's runner rather than Vitest, so the file reported "No test suite found" and all 144 tool definitions went unvalidated.
+- **`tests/x402-integration.test.js` failed for every contributor.** Its skip condition was inverted: it skipped in CI and ran on laptops, so a clean checkout produced 21 red `ECONNREFUSED` failures. It now probes for a server and skips when there is not one.
+- Two A2A tests asserted a hardcoded `3.1.0` against the real version.
+
 ### Added
+
+#### Examples and tutorials
+- **[`examples/`](examples/)** — 8 runnable programs, each verified against the live API before release: profile lookup, timeline analysis, offline sentiment reports, a three-network comparison, CSV export, non-follower analysis, a keyword monitor, and an MCP client that drives the server over stdio.
+- **[`tutorials/`](tutorials/)** — four guided walkthroughs: first scrape, MCP with Claude, cleaning up a following list, and building a brand monitor.
+
+#### Documentation that cannot rot
+- **`npm run docs:check`** fails on a dead relative link, a dead heading anchor, a referenced script that no longer exists, a stale version claim, a wrong MCP tool count, or a documented CLI command that does not exist. It is dependency-free and runs as its own CI job. It found 87 dead links, 25 stale version and tool-count claims, and 11 invented CLI commands on its first run; all are fixed.
+- **`npm run docs:scripts`** regenerates the browser-script catalog from the scripts themselves, so a 93-entry list cannot drift.
+- **`npm run check:endpoints`** probes every GraphQL endpoint and distinguishes a rotated query ID from an endpoint that merely needs a session, which is the failure that silently broke the client above.
+- Five docs the index had promised but never had: [browser-scripts](docs/browser-scripts.md), [configuration](docs/configuration.md), [database](docs/database.md), [skills](docs/skills.md), [troubleshooting](docs/troubleshooting.md).
 
 #### 40 new browser tools, and the Command Center now covers 108
 - Added a full wave of browser-console tools so the toolkit covers essentially every X action, and folded them all into the Command Center (now 108 tools across 11 categories, with two new categories: **Create & Post** and **Lists**):

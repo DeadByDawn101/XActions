@@ -15,7 +15,7 @@ Brief description of the skill — what it does and when to use it.
 
 | Goal | Solution |
 |------|----------|
-| Do X | `path/to/script.js` or `xactions command` |
+| Do X | `path/to/script.js` or `xactions <command>` |
 | Do Y | `path/to/other.js` |
 
 ## Implementation Details
