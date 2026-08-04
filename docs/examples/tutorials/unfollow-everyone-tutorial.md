@@ -493,7 +493,7 @@ npx xactions unfollow --all \
 ### ✅ CLI Output Preview
 
 ```
-⚡ XActions v3.4.4
+⚡ XActions v3.4.7
 
 ☢️  UNFOLLOW EVERYONE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
