@@ -311,53 +311,91 @@ export async function x_get_thread({ url }) {
   return scrapeThread(pg, url);
 }
 
+/**
+ * Collect a profile and a timeline sample, then run the shared analyser.
+ *
+ * The HTTP client is used rather than the browser because X stopped serving
+ * profile and timeline content to a logged-out browser: the DOM scrape came
+ * back empty and the analysis was computed over nothing.
+ *
+ * @param {string} username
+ * @param {number} limit
+ * @returns {Promise<object>} A report from src/analysis/accountReport.js
+ */
+async function collectReport(username, limit) {
+  const { buildAccountReport } = await import('../analysis/accountReport.js');
+  const scraper = await ensureHttpScraper();
+
+  const profile = await scraper.getProfile(username);
+  if (!profile?.id) throw new Error(`No profile data returned for @${username}`);
+
+  const tweets = [];
+  for await (const tweet of scraper.getTweets(username, limit)) {
+    tweets.push(tweet);
+    if (tweets.length >= limit) break;
+  }
+
+  return buildAccountReport({ profile, tweets });
+}
+
+/**
+ * Full account report: engagement, cadence, content mix, timing, top posts.
+ *
+ * Accepts one username or several. With several it also returns the
+ * side-by-side comparison, so an agent asking "who is doing better" gets the
+ * answer rather than four reports to reconcile itself.
+ *
+ * @param {{username: string|string[], limit?: number}} args
+ * @returns {Promise<object>}
+ */
+export async function x_account_report({ username, limit = 50 }) {
+  const names = (Array.isArray(username) ? username : [username]).map((n) => String(n).replace(/^@/, ''));
+  const sample = Math.min(Math.max(parseInt(limit, 10) || 50, 5), 200);
+
+  const reports = [];
+  for (const name of names) {
+    reports.push(await collectReport(name, sample));
+  }
+
+  if (reports.length === 1) return reports[0];
+
+  const { compareReports } = await import('../analysis/accountReport.js');
+  return { comparison: compareReports(reports), reports };
+}
+
+/**
+ * When an account's posts actually perform.
+ *
+ * Derived from the same report as `x_account_report` rather than recomputing
+ * its own buckets, so the two tools can never disagree about the best hour.
+ *
+ * @param {{username: string, limit?: number}} args
+ * @returns {Promise<object>}
+ */
 export async function x_best_time_to_post({ username, limit = 100 }) {
-  const { page: pg } = await ensureBrowser();
-  const tweets = await scrapeTweets(pg, username, { limit });
+  const sample = Math.min(Math.max(parseInt(limit, 10) || 100, 5), 200);
+  const report = await collectReport(String(username).replace(/^@/, ''), sample);
 
-  if (!tweets || !tweets.length) {
-    return { error: `No tweets found for @${username}` };
-  }
+  const rank = (buckets, label) =>
+    buckets
+      .filter((b) => b.posts >= report.timing.minimumBucketSample)
+      .sort((a, b) => b.medianEngagement - a.medianEngagement)
+      .map((b) => ({ [label]: b.label ?? `${String(b.index).padStart(2, '0')}:00 UTC`, posts: b.posts, medianEngagement: b.medianEngagement }));
 
-  const hourBuckets = Array.from({ length: 24 }, () => ({ count: 0, totalEngagement: 0 }));
-  const dayBuckets = Array.from({ length: 7 }, () => ({ count: 0, totalEngagement: 0 }));
-  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-
-  for (const tweet of tweets) {
-    const dateStr = tweet.time || tweet.timestamp || tweet.date;
-    if (!dateStr) continue;
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) continue;
-
-    const hour = d.getUTCHours();
-    const day = d.getUTCDay();
-    const engagement = (parseInt(tweet.likes) || 0) + (parseInt(tweet.retweets) || 0) + (parseInt(tweet.replies) || 0);
-
-    hourBuckets[hour].count++;
-    hourBuckets[hour].totalEngagement += engagement;
-    dayBuckets[day].count++;
-    dayBuckets[day].totalEngagement += engagement;
-  }
-
-  const bestHours = hourBuckets
-    .map((b, i) => ({ hour: i, ...b, avgEngagement: b.count ? (b.totalEngagement / b.count) : 0 }))
-    .filter(b => b.count > 0)
-    .sort((a, b) => b.avgEngagement - a.avgEngagement)
-    .slice(0, 5);
-
-  const bestDays = dayBuckets
-    .map((b, i) => ({ day: dayNames[i], ...b, avgEngagement: b.count ? (b.totalEngagement / b.count) : 0 }))
-    .filter(b => b.count > 0)
-    .sort((a, b) => b.avgEngagement - a.avgEngagement);
+  const bestHours = rank(report.timing.byHourUTC, 'hour').slice(0, 5);
+  const bestDays = rank(report.timing.byWeekday, 'day');
 
   return {
-    username,
-    tweetsAnalyzed: tweets.length,
-    bestHoursUTC: bestHours.map(h => ({ hour: `${h.hour}:00 UTC`, posts: h.count, avgEngagement: Math.round(h.avgEngagement) })),
-    bestDays: bestDays.map(d => ({ day: d.day, posts: d.count, avgEngagement: Math.round(d.avgEngagement) })),
+    username: report.identity.username,
+    postsAnalyzed: report.meta.sampleSize,
+    sampleSpanDays: report.meta.sampleSpanDays,
+    minimumPostsPerBucket: report.timing.minimumBucketSample,
+    bestHoursUTC: bestHours,
+    bestDays,
+    medianEngagementOverall: report.engagement.medianPerPost,
     recommendation: bestHours.length
-      ? `Post around ${bestHours[0].hour}:00 UTC on ${bestDays[0]?.day || 'any day'} for best engagement`
-      : 'Not enough data to recommend',
+      ? `Post around ${bestHours[0].hour} on ${bestDays[0]?.day || 'any day'}. Ranked by median engagement, not by post count, so a single lucky post cannot pick the winner.`
+      : `Not enough data. No hour in the sample has the ${report.timing.minimumBucketSample} posts needed to rank it. Raise limit and try again.`,
   };
 }
 
@@ -1456,6 +1494,7 @@ export const toolMap = {
   x_search_tweets,
   x_get_thread,
   x_best_time_to_post,
+  x_account_report,
   // Core actions
   x_follow,
   x_unfollow,

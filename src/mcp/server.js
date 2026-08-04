@@ -32,6 +32,8 @@ import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import { randomUUID } from 'node:crypto';
+import { realpathSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 // ============================================================================
 // Plugin System
@@ -1144,6 +1146,28 @@ const TOOLS = [
         limit: {
           type: 'number',
           description: 'Number of recent tweets to analyze (default: 100)',
+        },
+      },
+      required: ['username'],
+    },
+  },
+  {
+    name: 'x_account_report',
+    description:
+      'Full account report for one or more public X accounts, computed from public data with no login: engagement rate, median interactions per post, posting cadence, content mix (original vs reply vs repost, media and link share), best hour and weekday by median engagement, top posts, top hashtags, and plain-language observations. Pass an array of usernames to get a side-by-side comparison as well. Use this instead of fetching a profile and a timeline separately when the question is about how an account is performing.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        username: {
+          oneOf: [
+            { type: 'string' },
+            { type: 'array', items: { type: 'string' }, minItems: 2, maxItems: 4 },
+          ],
+          description: 'Username without @, or an array of 2 to 4 usernames to compare',
+        },
+        limit: {
+          type: 'number',
+          description: 'Posts to sample per account (default 50, max 200). A larger sample gives steadier medians.',
         },
       },
       required: ['username'],
@@ -4090,13 +4114,39 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.error('❌ Fatal error:', error.message);
-  if (process.env.DEBUG) {
-    console.error(error.stack);
+/**
+ * Is this module the process entry point?
+ *
+ * The `xactions-mcp` bin is a symlink npm creates into node_modules/.bin, so
+ * `process.argv[1]` is the symlink path while `import.meta.url` is the real
+ * one. Comparing them directly would never match under npx and the server
+ * would refuse to start. Resolving argv[1] through realpath first makes the
+ * comparison hold for `node src/mcp/server.js`, `npm run mcp` and
+ * `npx -y xactions-mcp` alike.
+ *
+ * @returns {boolean}
+ */
+function isEntryPoint() {
+  if (!process.argv[1]) return false;
+  try {
+    return realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
+  } catch {
+    return false;
   }
-  process.exit(1);
-});
+}
 
-// Export for testing without starting the stdio transport
-export { TOOLS };
+// Importing this module must not start a server. `xactions doctor`, the test
+// suite and anything else that wants the tool list would otherwise open a
+// stdio transport as a side effect and then hang waiting for a client.
+if (isEntryPoint()) {
+  main().catch((error) => {
+    console.error('❌ Fatal error:', error.message);
+    if (process.env.DEBUG) {
+      console.error(error.stack);
+    }
+    process.exit(1);
+  });
+}
+
+// Exported so the tool list can be inspected without starting a transport.
+export { TOOLS, main, createMcpServer };

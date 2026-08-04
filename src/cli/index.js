@@ -19,6 +19,9 @@ import path from 'path';
 import os from 'os';
 
 import scrapers from '../scrapers/index.js';
+import { registerConnectCommand } from './commands/connect.js';
+import { registerDoctorCommand } from './commands/doctor.js';
+import { registerReportCommand } from './commands/report.js';
 
 const program = new Command();
 
@@ -180,6 +183,19 @@ program
   .name('xactions')
   .description(chalk.bold('⚡ XActions - The Complete X/Twitter Automation Toolkit'))
   .version(VERSION);
+
+// ============================================================================
+// Commands that live in their own modules
+//
+// index.js is long enough that adding to it makes it harder to read, so
+// anything new is registered from src/cli/commands/. Each module owns its
+// flags, its rendering and its error handling, and takes whatever it needs
+// from here as an explicit dependency rather than reaching back in.
+// ============================================================================
+
+registerConnectCommand(program);
+registerDoctorCommand(program);
+registerReportCommand(program, { createHttpScraper, smartOutput });
 
 // ============================================================================
 // Auth Commands
