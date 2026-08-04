@@ -16,9 +16,14 @@ directory has the same material as short runnable programs.
 | 02 | [Claude that can use X](02-mcp-with-claude.md) | 10 min | Claude Desktop or Cursor driving 144 XActions tools |
 | 03 | [Clean up your following list](03-clean-up-your-following.md) | 20 min | A safe, reviewed unfollow of accounts that do not follow back |
 | 04 | [Build a brand monitor](04-build-a-brand-monitor.md) | 30 min | A running service that watches X and alerts you on negative mentions |
+| 05 | [Read any account like an analyst](05-competitive-intelligence.md) | 15 min | A defensible read on how any account performs, and how two differ |
+| 06 | [Everything is JSON](06-everything-is-json.md) | 20 min | XActions inside your own pipelines: jq, cron, exit codes, tab completion |
 
 Work through them in order the first time. Each assumes the setup from the one
-before it.
+before it. Tutorials 01, 05 and 06 need no X account at all.
+
+Never used the CLI before? `xactions quickstart` is the thirty-second version of
+tutorial 01, and adapts to what you already have set up.
 
 ---
 

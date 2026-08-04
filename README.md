@@ -117,10 +117,13 @@ npx xactions search "your brand" --limit 50               # what people are sayi
 
 | Area | What changed |
 |------|-------------|
+| **A CLI you can find your way around** | Fifty-plus commands are now grouped by task instead of listed alphabetically. `xactions quickstart` gives a guided first run that adapts to what you already have set up. |
+| **Tab completion** | `xactions completion bash\|zsh\|fish` prints a completion script generated from the live command tree, so every command, sub-command, and flag completes. |
+| **`--json` everywhere** | Every read command accepts `--json` and puts data on stdout and nothing else. It outranks `--output`, so a pipe is never silently turned into a file write. |
 | **Reliability** | Public reads no longer need a browser at all. Profiles and timelines come from the internal GraphQL API in about a second, with no Chromium download. |
 | **Honest failures** | Nothing reports empty results as success anymore. A read that cannot complete says why, and says what to do about it. |
 | **Examples** | [`examples/`](examples/) — 8 runnable programs, each verified against the live API. |
-| **Tutorials** | [`tutorials/`](tutorials/) — four guided walkthroughs from first scrape to a deployed monitor. |
+| **Tutorials** | [`tutorials/`](tutorials/) — six guided walkthroughs, from a first scrape with no account to scripting XActions inside your own pipelines. |
 | **Docs that stay true** | `npm run docs:check` fails the build on a dead link, a stale version, a wrong tool count, or a documented command that does not exist. |
 | **Cross-platform** | Bluesky, Mastodon, and Threads scrapers behind one normalised interface. |
 | **Plugin system** | Community plugins via npm: `xactions-plugin-*` packages extend scrapers, MCP tools, and automation. |
@@ -528,7 +531,8 @@ npm install xactions
 
 ```bash
 npm install -g xactions
-xactions --help
+xactions quickstart          # guided first run
+xactions doctor              # check what works right now
 ```
 
 </td>
@@ -546,6 +550,28 @@ No install needed — copy-paste scripts into your browser console on x.com
 ---
 
 ## 🚀 Quick Start Examples
+
+### Sixty seconds, no account
+
+Most reads work the moment you install. You do not need an X account, an API key, or a browser.
+
+```bash
+npm install -g xactions
+
+xactions doctor                      # what works right now, and why
+xactions profile NASA                # any public account
+xactions analyze NASA                # engagement rate, cadence, content mix, best hour
+xactions tweets NASA --limit 50 --json | jq -r '.[].text'
+```
+
+Then log in once, in a real browser, to unlock search, followers, following, likes, bookmarks, and DMs:
+
+```bash
+xactions connect
+xactions search "your topic" --limit 50
+```
+
+Running `xactions` with no arguments prints all fifty-plus commands grouped by task. `xactions completion bash` (or `zsh`, `fish`) turns on tab completion.
 
 ### Example 1: Unfollow Non-Followers (30 seconds)
 

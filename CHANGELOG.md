@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [3.5.0] - 2026-08-04
+
+### Added
+
+#### A CLI you can find your way around
+- **Commands are grouped by task.** Running `xactions` printed fifty-three commands in one flat alphabetical list, which tells a newcomer nothing about where to start and an experienced user nothing about what else exists. The root help now sorts them into eight task-shaped groups (Start here, Read an account, Followers and audience, Search and monitor, Write and grow, Automate, Move data, Low level) with an examples block and pointers to `quickstart`, per-command help, and completions. The grouping is reconciled against the live command tree, so a newly registered command still appears (under "More") and a group entry naming a deleted command is caught by a test rather than shipped.
+- **`xactions quickstart`.** A guided first run that reads what you already have configured and prints the three commands that will produce a result on your machine, then the directions worth exploring next. `--json` reports the detected setup state (config directory, whether a session is saved, guest or session tier) for scripts and CI.
+- **`xactions completion bash|zsh|fish`.** Tab completion for every command, sub-command, and flag, generated from the live Commander tree rather than a hand-maintained list, so it stays correct as commands are added. Descriptions are escaped per shell: an unescaped colon in zsh's `name:description` format silently truncated half the descriptions, and an apostrophe would have terminated the quoted string early.
+
+### Changed
+
+- **`--json` now works on every read command.** It was accepted by `profile` and `analyze` only; `tweets`, `followers`, `following`, `non-followers`, `search`, `hashtag`, `thread`, and `media` rejected it with `error: unknown option '--json'` despite the docs promising it worked everywhere. All eight now accept it.
+- **`--json` outranks `--output` and `--google-sheets`.** Passing both used to write the file and print nothing, so a script that piped `--json` while a config supplied `--output` silently produced no output. `--json` is now an explicit "give me the data on stdout" and wins.
+
+### Documentation
+
+- **[tutorial 05: Read any account like an analyst](tutorials/05-competitive-intelligence.md).** Reading an account report properly (median versus mean, engagement per view versus per follower, lifetime versus recent cadence), comparing accounts, follower overlap, and tracking a series over time. Runs entirely on the guest tier.
+- **[tutorial 06: Everything is JSON](tutorials/06-everything-is-json.md).** XActions as a pipeline component: the real field names, jq filters, chaining commands, exit codes in cron and CI, and where to switch from shell to the Node client. Every snippet was run against live data before it was written down.
+- **CLI reference corrected.** It carried a hardcoded `Version 3.0.0`, claimed an X account was required (most reads need none), and steered new users to `xactions login` (paste cookies out of DevTools) rather than `xactions connect` (log in through a real browser). It now documents the command groups, `quickstart`, and `completion`.
+
+
 ### Fixed
 
 #### Public reads work again, without a browser

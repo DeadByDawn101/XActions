@@ -88,7 +88,7 @@ const MCP_TOOL_COUNT = countMcpTools();
 /**
  * Collect the top-level commands the CLI actually defines.
  *
- * Read statically from the `.command('name ...')` calls in src/cli/index.js
+ * Read statically from the `.command('name ...')` calls in the CLI sources
  * rather than by running `--help`, so this check stays dependency-free.
  *
  * Docs that invent a plausible-sounding command are worse than docs with a
@@ -98,20 +98,43 @@ const MCP_TOOL_COUNT = countMcpTools();
  * Subcommands (`xactions client profile`, `xactions agent setup`) are included
  * by name, so a nested command is never reported as missing.
  *
+ * Both src/cli/index.js and every module under src/cli/commands/ are scanned.
+ * Scanning index.js alone made this check report `doctor`, `connect`, and
+ * `report` as nonexistent from the moment those moved into their own modules:
+ * a false positive on a real command trains people to ignore the audit, which
+ * is worse than not running it.
+ *
  * @returns {Set<string>|null}
  */
 function collectCliCommands() {
-  let source;
+  const sources = [];
+
   try {
-    source = readFileSync(join(ROOT, 'src', 'cli', 'index.js'), 'utf8');
+    sources.push(readFileSync(join(ROOT, 'src', 'cli', 'index.js'), 'utf8'));
   } catch {
     return null;
   }
 
-  const commands = new Set();
-  for (const match of source.matchAll(/\.command\(\s*'([\w-]+)/g)) {
-    commands.add(match[1]);
+  try {
+    const commandsDir = join(ROOT, 'src', 'cli', 'commands');
+    for (const entry of readdirSync(commandsDir)) {
+      if (entry.endsWith('.js')) {
+        sources.push(readFileSync(join(commandsDir, entry), 'utf8'));
+      }
+    }
+  } catch {
+    // No commands directory is fine: everything still lives in index.js.
   }
+
+  const commands = new Set();
+  for (const source of sources) {
+    for (const match of source.matchAll(/\.command\(\s*'([\w-]+)/g)) {
+      commands.add(match[1]);
+    }
+  }
+
+  // Commander provides `help` itself, so no `.command('help')` call exists.
+  commands.add('help');
 
   return commands.size > 0 ? commands : null;
 }

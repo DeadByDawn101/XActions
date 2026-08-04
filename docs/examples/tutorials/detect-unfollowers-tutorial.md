@@ -457,7 +457,7 @@ npx xactions followers compare \
 ### ✅ CLI Output Preview
 
 ```
-⚡ XActions v3.4.7
+⚡ XActions v3.5.0
 
 🔍 DETECT UNFOLLOWERS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

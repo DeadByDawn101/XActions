@@ -9,7 +9,7 @@
  * @license MIT
  */
 
-import { Command } from 'commander';
+import { Command, Help } from 'commander';
 import { VERSION } from '../version.js';
 import chalk from 'chalk';
 import ora from 'ora';
@@ -22,6 +22,9 @@ import scrapers from '../scrapers/index.js';
 import { registerConnectCommand } from './commands/connect.js';
 import { registerDoctorCommand } from './commands/doctor.js';
 import { registerReportCommand } from './commands/report.js';
+import { registerQuickstartCommand } from './commands/quickstart.js';
+import { registerCompletionCommand } from './commands/completion.js';
+import { renderRootHelp } from './help-groups.js';
 
 const program = new Command();
 
@@ -125,6 +128,16 @@ const AUTH_HINT =
  * @param {string} defaultName - Default filename stem (e.g., 'followers')
  */
 async function smartOutput(data, options, defaultName = 'data') {
+  // `--json` is an explicit "give me the data on stdout" and outranks every
+  // destination flag. These commands already default to JSON when no
+  // destination is set, but a script written against the documented contract
+  // (`--json` works on every read command) must not silently write a file
+  // instead of piping, and must not fail with "unknown option" either.
+  if (options.json) {
+    console.log(JSON.stringify(data, null, 2));
+    return;
+  }
+
   // Google Sheets export
   if (options.googleSheets) {
     try {
@@ -196,6 +209,8 @@ program
 registerConnectCommand(program);
 registerDoctorCommand(program);
 registerReportCommand(program, { createHttpScraper, smartOutput });
+registerQuickstartCommand(program, { version: VERSION });
+registerCompletionCommand(program);
 
 // ============================================================================
 // Auth Commands
@@ -322,6 +337,7 @@ program
   .option('--google-sheets <id>', 'Export directly to a Google Sheet (spreadsheet ID)')
   .option('--sheet-name <name>', 'Sheet/tab name for xlsx or Google Sheets export')
   .option('--sheet-mode <mode>', 'Google Sheets write mode: append, replace, new-sheet', 'append')
+  .option('--json', 'Force JSON on stdout, ignoring --output and --google-sheets')
   .action(async (username, options) => {
     const limit = parseInt(options.limit);
     const spinner = ora(`Scraping followers for @${username}`).start();
@@ -354,6 +370,7 @@ program
   .option('--google-sheets <id>', 'Export directly to a Google Sheet (spreadsheet ID)')
   .option('--sheet-name <name>', 'Sheet/tab name for xlsx or Google Sheets export')
   .option('--sheet-mode <mode>', 'Google Sheets write mode: append, replace, new-sheet', 'append')
+  .option('--json', 'Force JSON on stdout, ignoring --output and --google-sheets')
   .action(async (username, options) => {
     const limit = parseInt(options.limit);
     const spinner = ora(`Scraping following for @${username}`).start();
@@ -383,6 +400,7 @@ program
   .description('Find accounts that don\'t follow back')
   .option('-l, --limit <number>', 'Maximum to check', '500')
   .option('-o, --output <file>', 'Output file')
+  .option('--json', 'Force JSON on stdout, ignoring --output and --google-sheets')
   .action(async (username, options) => {
     const limit = parseInt(options.limit);
     const spinner = ora('Analyzing follow relationships...').start();
@@ -432,7 +450,9 @@ program
         }
       }
 
-      if (options.output) {
+      if (options.json) {
+        console.log(JSON.stringify(nonFollowers, null, 2));
+      } else if (options.output) {
         await scrapers.exportToJSON(nonFollowers, options.output);
         console.log(chalk.green(`\n✓ Full list saved to ${options.output}`));
       }
@@ -452,6 +472,7 @@ program
   .option('--google-sheets <id>', 'Export directly to a Google Sheet (spreadsheet ID)')
   .option('--sheet-name <name>', 'Sheet/tab name for xlsx or Google Sheets export')
   .option('--sheet-mode <mode>', 'Google Sheets write mode: append, replace, new-sheet', 'append')
+  .option('--json', 'Force JSON on stdout, ignoring --output and --google-sheets')
   .action(async (username, options) => {
     const limit = parseInt(options.limit);
     const spinner = ora(`Scraping tweets from @${username}`).start();
@@ -485,6 +506,7 @@ program
   .option('-l, --limit <number>', 'Maximum results', '50')
   .option('-f, --filter <type>', 'Filter: latest, top, people, photos, videos', 'latest')
   .option('-o, --output <file>', 'Output file')
+  .option('--json', 'Force JSON on stdout, ignoring --output and --google-sheets')
   .action(async (query, options) => {
     const limit = parseInt(options.limit);
     const spinner = ora(`Searching for "${query}"`).start();
@@ -510,7 +532,9 @@ program
       assertNotEmpty(tweets, `results for "${query}"`, AUTH_HINT);
       spinner.succeed(`Found ${tweets.length} tweets`);
 
-      if (options.output) {
+      if (options.json) {
+        console.log(JSON.stringify(tweets, null, 2));
+      } else if (options.output) {
         await scrapers.exportToJSON(tweets, options.output);
         console.log(chalk.green(`✓ Saved to ${options.output}`));
       } else {
@@ -528,6 +552,7 @@ program
   .description('Scrape tweets for a hashtag')
   .option('-l, --limit <number>', 'Maximum results', '50')
   .option('-o, --output <file>', 'Output file')
+  .option('--json', 'Force JSON on stdout, ignoring --output and --google-sheets')
   .action(async (tag, options) => {
     const limit = parseInt(options.limit);
     const hashtag = tag.startsWith('#') ? tag : `#${tag}`;
@@ -547,7 +572,9 @@ program
 
       spinner.succeed(`Found ${tweets.length} tweets`);
 
-      if (options.output) {
+      if (options.json) {
+        console.log(JSON.stringify(tweets, null, 2));
+      } else if (options.output) {
         await scrapers.exportToJSON(tweets, options.output);
         console.log(chalk.green(`✓ Saved to ${options.output}`));
       } else {
@@ -563,6 +590,7 @@ program
   .command('thread <url>')
   .description('Scrape a full tweet thread')
   .option('-o, --output <file>', 'Output file')
+  .option('--json', 'Force JSON on stdout, ignoring --output and --google-sheets')
   .action(async (url, options) => {
     const spinner = ora('Scraping thread...').start();
 
@@ -580,7 +608,9 @@ program
 
       spinner.succeed(`Scraped ${thread.length} tweets in thread`);
 
-      if (options.output) {
+      if (options.json) {
+        console.log(JSON.stringify(thread, null, 2));
+      } else if (options.output) {
         await scrapers.exportToJSON(thread, options.output);
         console.log(chalk.green(`✓ Saved to ${options.output}`));
       } else {
@@ -601,6 +631,7 @@ program
   .description('Scrape media from a user')
   .option('-l, --limit <number>', 'Maximum items', '50')
   .option('-o, --output <file>', 'Output file')
+  .option('--json', 'Force JSON on stdout, ignoring --output and --google-sheets')
   .action(async (username, options) => {
     const limit = parseInt(options.limit);
     const spinner = ora(`Scraping media from @${username}`).start();
@@ -619,7 +650,9 @@ program
 
       spinner.succeed(`Found ${media.length} media items`);
 
-      if (options.output) {
+      if (options.json) {
+        console.log(JSON.stringify(media, null, 2));
+      } else if (options.output) {
         await scrapers.exportToJSON(media, options.output);
         console.log(chalk.green(`✓ Saved to ${options.output}`));
       } else {
@@ -3306,9 +3339,21 @@ clientCmd
 // Parse and Run
 // ============================================================================
 
-program.parse();
+// Fifty-plus commands printed as one flat alphabetical list tells a newcomer
+// nothing about where to start. Replace Commander's root help with the grouped
+// screen; sub-command help keeps the default format, which is fine at that size.
+const defaultFormatHelp = Help.prototype.formatHelp;
+program.configureHelp({
+  formatHelp(command, helper) {
+    return command === program
+      ? renderRootHelp(program, VERSION)
+      : defaultFormatHelp.call(this, command, helper);
+  },
+});
 
-// Show help if no command provided
-if (!process.argv.slice(2).length) {
-  program.outputHelp();
-}
+// Commander prints help and exits when it is given no arguments, so bare
+// `xactions` lands on the grouped screen above. That screen points at
+// `xactions quickstart` in three places, which is where a first-time user
+// should go; there is deliberately no redirect here, because an implicit jump
+// would hide the command list from someone who ran the binary to see it.
+program.parse();

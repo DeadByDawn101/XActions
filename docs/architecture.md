@@ -1,6 +1,6 @@
 # Architecture
 
-> XActions v3.4.7 — System architecture, project structure, and design decisions.
+> XActions v3.5.0 — System architecture, project structure, and design decisions.
 
 ## High-Level Architecture
 
@@ -285,4 +285,4 @@ workflow run morning-engage
 
 ---
 
-*XActions v3.4.7 — by nichxbt*
+*XActions v3.5.0 — by nichxbt*

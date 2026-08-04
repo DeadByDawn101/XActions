@@ -462,7 +462,7 @@ npx xactions download-video "https://x.com/nichxbt/status/1893847265192837465" \
 ### ✅ CLI Output Preview
 
 ```
-⚡ XActions v3.4.7
+⚡ XActions v3.5.0
 
 🎬 VIDEO DOWNLOADER
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

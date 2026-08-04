@@ -1,6 +1,6 @@
 # XActions Documentation
 
-> Complete documentation for XActions v3.4.7 — The X/Twitter Automation Toolkit
+> Complete documentation for XActions v3.5.0 — The X/Twitter Automation Toolkit
 
 ## Quick Links
 
@@ -31,7 +31,7 @@ XActions provides **5 interfaces** to the same underlying toolkit:
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│                   XActions v3.4.7                    │
+│                   XActions v3.5.0                    │
 ├──────────┬──────────┬───────┬──────────┬────────────┤
 │  CLI     │  MCP     │  API  │ Dashboard│  Browser   │
 │ xactions │ server   │ REST  │   Web UI │  Scripts   │
